@@ -344,11 +344,13 @@ int main (int argv, char **argc) {
 	 ***********************/
 
 	int columns = 15;
-	int NMAX = N*2>1500000?N*2:1500000;	     		//Maximum number of stars & orbits allowed in McLuster
+	int NMAX = N*2>10000000?N*2:10000000;	     		//Maximum number of stars & orbits allowed in McLuster
 	if(Mcl && (!N)) {
 	  NMAX = Mcl*3;
 	}
-	
+
+    printf("\nNMAX: %d\n",NMAX);
+
 	double **star;
 	star = (double **)calloc(NMAX,sizeof(double *));
 	for (j=0;j<NMAX;j++){
@@ -4300,6 +4302,11 @@ int segregate(double **star, int N, double S){
 	int columns = 15;
 	double **star_temp;
 	star_temp = (double **)calloc(N,sizeof(double *));
+    int nbin=100;
+    if (N<100) nbin=10;
+    if (N<10) nbin=1;
+    int nbinsize=N/nbin;
+    int *n_count = (int *)calloc(nbin,sizeof (int));
 	for (j=0;j<N;j++){
 		star_temp[j] = (double *)calloc(columns,sizeof(double));
 		star_temp[j][0] = 0.0;
@@ -4327,9 +4334,10 @@ int segregate(double **star, int N, double S){
 	shellsort(masses, N, 2);	
 
 	for (i=0;i<N;i++) star_temp[i][0] = 0.0;
+    for (i=0;i<nbin;i++) n_count[i] = 0;
 	
 	j = 0;
-	int Ntemp,l;
+	int Ntemp,l,lbin;
 	Ntemp = N;
     // Fully mass segregated case, no need to random pick up
     if(S==1.0) {
@@ -4355,13 +4363,23 @@ int segregate(double **star, int N, double S){
     else{
         for (i=0;i<N;i++) {
             j = 1.0*(1.0-pow(drand48(),1.0-S))*Ntemp;
-            l=-1;
+            // to reduce computing time, gether occupied index number into bins, then check each bin before index j
+            lbin=-1;
+            do {
+                lbin++;
+                l = lbin*nbinsize;
+                if (j<(lbin+1)*nbinsize) break;
+                if (n_count[lbin]) j+=n_count[lbin];
+            } while (1);
+            // finally check the index in the last bin
+            l--;
             do {
                 l++;
                 if (star_temp[l][0]) {
                     j++;
                 }
             } while (l<j);
+            n_count[j/nbinsize]++;
             star_temp[j][0] = star[(int) masses[i][1]][0];
             star_temp[j][1] = star[(int) masses[i][1]][1];
             star_temp[j][2] = star[(int) masses[i][1]][2];
@@ -4379,6 +4397,7 @@ int segregate(double **star, int N, double S){
             star_temp[j][14] = star[(int) masses[i][1]][14];
             Ntemp--;
         }
+        for (i=0; i<N;i++) assert(star_temp[i][0]>0.0);
     }
 	
 	//copying back to original array
