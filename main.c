@@ -4302,11 +4302,6 @@ int segregate(double **star, int N, double S){
 	int columns = 15;
 	double **star_temp;
 	star_temp = (double **)calloc(N,sizeof(double *));
-    int nbin=100;
-    if (N<100) nbin=10;
-    if (N<10) nbin=1;
-    int nbinsize=N/nbin;
-    int *n_count = (int *)calloc(nbin,sizeof (int));
 	for (j=0;j<N;j++){
 		star_temp[j] = (double *)calloc(columns,sizeof(double));
 		star_temp[j][0] = 0.0;
@@ -4315,7 +4310,6 @@ int segregate(double **star, int N, double S){
 			return 0;
 		}
 	}
-	
 	double **masses;
 	masses = (double **)calloc(N,sizeof(double *));
 	for (j=0;j<N;j++){
@@ -4325,6 +4319,12 @@ int segregate(double **star, int N, double S){
 			return 0;
 		}
 	}
+
+    int ncount_bin=((int)sqrt(N))/10*10;
+    if (N<100) ncount_bin=10;
+    if (N<10) ncount_bin=1;
+    int ncount_binsize=N/ncount_bin;
+    int n_count[ncount_bin];
 	
 	for (i=0;i<N;i++) {
 		masses[i][0] = star[i][0];
@@ -4334,7 +4334,7 @@ int segregate(double **star, int N, double S){
 	shellsort(masses, N, 2);	
 
 	for (i=0;i<N;i++) star_temp[i][0] = 0.0;
-    for (i=0;i<nbin;i++) n_count[i] = 0;
+    for (i=0;i<ncount_bin;i++) n_count[i] = 0;
 	
 	j = 0;
 	int Ntemp,l,lbin;
@@ -4367,8 +4367,8 @@ int segregate(double **star, int N, double S){
             lbin=-1;
             do {
                 lbin++;
-                l = lbin*nbinsize;
-                if (j<(lbin+1)*nbinsize) break;
+                l = lbin*ncount_binsize;
+                if (j<(lbin+1)*ncount_binsize) break;
                 if (n_count[lbin]) j+=n_count[lbin];
             } while (1);
             // finally check the index in the last bin
@@ -4379,7 +4379,7 @@ int segregate(double **star, int N, double S){
                     j++;
                 }
             } while (l<j);
-            n_count[j/nbinsize]++;
+            n_count[j/ncount_binsize]++;
             star_temp[j][0] = star[(int) masses[i][1]][0];
             star_temp[j][1] = star[(int) masses[i][1]][1];
             star_temp[j][2] = star[(int) masses[i][1]][2];
@@ -4421,7 +4421,7 @@ int segregate(double **star, int N, double S){
 	
 	for (j=0;j<N;j++) free (masses[j]);
 	free(masses);
-	
+
 	for (j=0;j<N;j++) free (star_temp[j]);
 	free(star_temp);
 	
