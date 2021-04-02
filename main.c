@@ -4323,7 +4323,7 @@ int segregate(double **star, int N, double S){
     int ncount_bin=((int)sqrt(N))/10*10;
     if (N<100) ncount_bin=10;
     if (N<10) ncount_bin=1;
-    int ncount_binsize=N/ncount_bin;
+    int ncount_binsize=N/ncount_bin+1;
     int n_count[ncount_bin];
 	
 	for (i=0;i<N;i++) {
