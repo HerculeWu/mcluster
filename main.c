@@ -2115,8 +2115,9 @@ int generate_plummer(int N, double **star, double rtide, double rvir, double D, 
 		}
 	} else {
 		double xcut;
-		xcut = 0.000;
-		while (1.0/sqrt(pow(xcut,-2.0/3.0) - 1.0)<=rcut) xcut+=0.00001;
+		//xcut = 0.000;
+		//while (1.0/sqrt(pow(xcut,-2.0/3.0) - 1.0)<=rcut) xcut+=0.00001;
+        xcut = pow(1.0/(rcut*rcut) + 1.0, -1.5);
 
 		fractalize(D, N, star, 1, symmetry);
 		for (i=0;i<N;i++) {
