@@ -3640,6 +3640,7 @@ int get_binaries(int nbin, double **star, double M, double rvir, int pairing, in
 	double u1, u2;
 	double q, p, x1;
 	double lP1, lPmean, lPsigma;
+    double lamin, lamax;
 
 	double zpars[20];     //metallicity parameters
 	double vkick[2];	 //kick velocity for compact remnants	
@@ -3718,7 +3719,15 @@ int get_binaries(int nbin, double **star, double M, double rvir, int pairing, in
 				abin = pow((m1+m2)*M*P*P,(1.0/3.0));//AU
 				abin /= 206264.806;//pc
 				abin /= rvir;//Nbody units
-			} else {
+			} else if (adis== 3) {
+				//logarithm flat semi-major axis distribution
+                if (!i) printf("\nApplying lagarithm flat semi-major axis distribution with amin = %g and amax = %g.\n", amin, amax);
+				if (!i) amin /= rvir;
+				if (!i) amax /= rvir;
+                lamin = log10(amin);
+                lamax = log10(amax);
+				abin = pow(10.0, lamin+drand48()*(lamax-lamin));
+            } else {
 				//derive from Duquennoy & Mayor (1991) period distribution
 				lPmean = 4.8;	//mean of Duquennoy & Mayor (1991) period distribution [log days]
 				lPsigma = 2.3;	//full width half maximum of Duquennoy & Mayor (1991) period distribution [log days]
@@ -5444,6 +5453,7 @@ void help(double msort) {
     printf("                    0= flat ranging from amin to amax (use -k twice) \n");
     printf("                    1= based on Kroupa (1995) period distribution, (default)\n");
     printf("                    2= based on Duquennoy & Mayor (1991) period distribution\n");
+    printf("                    3= flat in logarithmic scale from amin to amax (use -k twice) \n");
     printf("       -k <value>   (semi-major axis limit [pc] for -d=0, used twice [min,max]) \n");
     printf("       -E <0|1|2>   (binary semi-major axis/eccentricity distribution for M>%.1f Msun:\n",msort);
     printf("                    0= Same as M<%.1f Msun [option -d]               \n",msort);
