@@ -57,6 +57,8 @@
 #include<omp.h>
 #endif
 
+#define UBIN 1
+
 
 
 int main (int argv, char **argc) {
@@ -579,7 +581,7 @@ int main (int argv, char **argc) {
 		mloss = 0;
     } else {
 		if (!N) N = Mcl/single_mass;
-		printf("\nSetting stellar masses to %.1f solar mass\n", single_mass);
+		printf("\nSetting stellar massrplummeres to %.1f solar mass\n", single_mass);
 		for (j=0;j<N;j++) {
 			star[j][0] = single_mass;
 			star[j][7] = single_mass;
@@ -1210,7 +1212,7 @@ int main (int argv, char **argc) {
 	else if (code == 2)
 		output2(output, N, NNBMAX, RS0, dtadj, dtout, tcrit, rvir, mmean, tf, regupdate, etaupdate, mloss, bin, esc, M, mlow, mup, MMAX, epoch, dtplot, Z, nbin, Q, RG, VG, rtide, gpu, star, sse, seed, extmass, extrad, extdecay, extstart);
 	else if (code == 3)
-		output3(output, N, rvir, Rh, mmean, M, epoch, Z, RG, VG, rtide, star, Rgal, extmass, extrad);
+		output3(output, N, nbin, rvir, Rh, mmean, M, epoch, Z, RG, VG, rtide, star, Rgal, extmass, extrad);
 	else if (code == 4) 
 		output4(output, N, NNBMAX, RS0, dtadj, dtout, tcrit, rvir, mmean, tf, regupdate, etaupdate, mloss, bin, esc, M, mlow, mup, MMAX, epoch, dtplot, Z, nbin, Q, RG, VG, rtide, gpu, star, sse, seed, extmass, extrad, extdecay, extstart);
 	else if (code == 5) 
@@ -1225,7 +1227,6 @@ int main (int argv, char **argc) {
 	 **********************/
 	
 	printf("\n\n-----FINISH-----  \n"); 
-
 	if (check) {
 		printf("\nMaking final energy check... (may take a while but can be aborted by pressing CTRL+c)\n");
 
@@ -5087,7 +5088,7 @@ int output2(char *output, int N, int NNBMAX, double RS0, double dtadj, double dt
 	
 }
 
-int output3(char *output, int N, double rvir, double rh, double mmean, double M, double epoch, double Z, double *RG, double *VG, double rtide, double **star, double Rgal, double extmass, double extrad){
+int output3(char *output, int N, int nbin, double rvir, double rh, double mmean, double M, double epoch, double Z, double *RG, double *VG, double rtide, double **star, double Rgal, double extmass, double extrad){
 	//Open output files
 	char tablefile[20];		
 	FILE *TABLE;
@@ -5113,6 +5114,101 @@ int output3(char *output, int N, double rvir, double rh, double mmean, double M,
     
     //rescale velocities to include effect of gas potential
     if (extmass) {
+		if (nbin && UBIN) {
+			// split binary stars
+			// m1+m2, r_cm[3], v_cm[3], r_rel[3], v_rel[3]
+			double **binary;
+			binary = (double **)calloc(nbin,sizeof(double *));
+			for (j=0;j<nbin;j++){
+				binary[j] = (double *)calloc(13,sizeof(double));
+				if (star[j] == NULL) {
+					printf("\nMemory allocation failed!\n");
+					return 0;
+				}
+			}
+			int p1, p2;
+			double m1, m2, mtot;
+			for (j=0; j<nbin; j++) {
+				p1 = 2*j;
+				p2 = 2*j + 1;
+				m1 = star[p1][0];
+				m2 = star[p2][0];
+				mtot = m1+m2;
+				// mass
+				binary[j][0] = mtot;
+				for (i = 0; i<3; i++) {
+					// c.m pos & vel
+					binary[j][i+1] = ((m1*star[p1][i+1]) + (m2*star[p2][i+1]))/mtot;
+					binary[j][i+4] = ((m1*star[p1][i+4]) + (m2*star[p2][i+4]))/mtot;
+					// relative pos & vel
+					binary[j][i+7] = star[p2][i+1] - star[p1][i+1];
+					binary[j][i+10] = star[p2][i+4] - star[p1][i+4];
+				}
+			}
+			double mi, mj, xi, yi, zi, xj, yj, zj;
+			for (j = 0; j<N-nbin; j++) {
+				if (j < nbin) {
+					mj = binary[j][0];
+					xj = binary[j][1];
+					yj = binary[j][2];
+					zj = binary[j][3];
+				} else {
+					mj = star[2*nbin + j][0];
+					xj = star[2*nbin + j][1];
+					yj = star[2*nbin + j][2];
+					zj = star[2*nbin + j][3];
+				}
+				// gas potential
+				gaspot -= mj/extrad*extmass/sqrt(1.0 + (xj*xj+yj*yj+zj*zj)/(extrad*extrad));
+				if (j == N-nbin-1) {
+					break;
+				}
+				for (i = j+1; j<N-nbin; j++){
+					if (i < nbin) {
+						mi = binary[i][0];
+						xi = binary[i][1];
+						yi = binary[i][2];
+						zi = binary[i][3];
+					} else {
+						mi = star[2*nbin + i][0];
+						xi = star[2*nbin + i][1];
+						yi = star[2*nbin + i][2];
+						zi = star[2*nbin + i][3];
+					}
+					// cluster potential
+					epot -= mi*mj/sqrt(
+						((xi-xj)*(xi-xj))+
+						((yi-yj)*(yi-yj))+
+						((zi-zj)*(zi-zj)));
+					
+				}
+			}
+			vscale = sqrt(1.0+0.5*gaspot/epot);
+
+			for (j = 0; j < N-nbin; j++) {
+				if (j < nbin) {
+					binary[j][4] *= vscale;
+					binary[j][5] *= vscale;
+					binary[j][6] *= vscale;
+				} else {
+					star[2*nbin + j][4] *= vscale;
+					star[2*nbin + j][5] *= vscale;
+					star[2*nbin + j][6] *= vscale;
+				}
+			}
+			// transform binary velocity
+			for (j = 0; j<nbin; j++) {
+				p1 = 2*j;
+				p2 = 2*j + 1;
+				m1 = star[p1][0];
+				m2 = star[p2][0];
+				mtot = m1+m2;
+				for (i = 0; i < 3; i++) {
+					star[p2][i+4] = binary[j][i+4] + (m1/mtot)*binary[j][i+10];
+					star[p1][i+4] = binary[j][i+4] - (m2/mtot)*binary[j][i+10];
+				}
+			}
+		} else {
 #ifndef NOOMP
 #pragma omp parallel shared(N, star)  private(i, j)
 		{
@@ -5138,9 +5234,9 @@ int output3(char *output, int N, double rvir, double rh, double mmean, double M,
             star[j][5] *= vscale;
             star[j][6] *= vscale;
         }
-        
-        printf("\nVelocities rescaled to virial equilibrium in Plummer background potential with mass of %.2g Msun and a Plummer radius of %2.f pc.\n", extmass, extrad);
-
+		}
+        printf("\nVelocities rescaled to virial equilibrium in Plummer background potential with mass of %.2g Msun and a Plummer radius of %.2f pc, vscale = %.2f.\n", extmass, extrad, vscale);
+		printf("\nEpot = %.3e, gas_pot = %.3e\n", epot, gaspot);
     }
     
 
