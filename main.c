@@ -5208,6 +5208,10 @@ int output3(char *output, int N, int nbin, double rvir, double rh, double mmean,
 					star[p1][i+4] = binary[j][i+4] - (m2/mtot)*binary[j][i+10];
 				}
 			}
+			for (j=0; j<nbin; j++) {
+				free(binary[j]);
+			}
+			free(binary);
 		} else {
 #ifndef NOOMP
 #pragma omp parallel shared(N, star)  private(i, j)
