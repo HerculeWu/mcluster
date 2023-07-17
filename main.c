@@ -5163,7 +5163,7 @@ int output3(char *output, int N, int nbin, double rvir, double rh, double mmean,
 				if (j == N-nbin-1) {
 					break;
 				}
-				for (i = j+1; j<N-nbin; j++){
+				for (i = j+1; i<N-nbin; i++){
 					if (i < nbin) {
 						mi = binary[i][0];
 						xi = binary[i][1];
