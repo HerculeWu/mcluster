@@ -5577,7 +5577,7 @@ int output6(char *output, int N, int nbin, int tf, double rh, double mmean, doub
 		vz = star[i][6]*kms2pcMyr;
 		fprintf(init,
 			"%.15g %.15g %.15g %.15g %.15g %.15g %.15g 0 0 0 0 0 1 %.15g %.15g 0 0 0 0 0 0 0 0 %d 0 0 0 0 0 0 0 0 0 0 0\n",
-			  m,     rx,   ry,   rz,   vx,  vy,   vz,               m,     m,                  i
+			  m,     rx,   ry,   rz,   vx,  vy,   vz,               m,     m,                  i+1
 		);
 	}
 	fclose(init);
