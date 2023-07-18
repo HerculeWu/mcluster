@@ -1190,7 +1190,7 @@ int main (int argv, char **argc) {
     printf("\nNew Time scaling: tscale=%f ",tscale);
 
 	//scale mass, radius and decay time of external (gas) potential to Nbody units
-    if (!(code == 3 && units)) {
+    if (!(((code == 3) || (code == 6)) && units)) {
         if (extmass) extmass /= M;
         if (extrad) extrad /= rvir;
         if (extdecay) extdecay = 1.0/(extdecay/tscale);
@@ -1218,9 +1218,6 @@ int main (int argv, char **argc) {
 	} else if (code == 5) { 
 		output5(output, N, NNBMAX, RS0, dtadj, dtout, tcrit*tscale, tcrit, rvir, mmean, tf, regupdate, etaupdate, mloss, bin, esc, M, mlow, mup, MMAX, epoch, dtplot, Z, nbin, Q, RG, VG, rtide, gpu, star, sse, seed, extmass, extrad, extdecay, extstart);
 	} else if (code == 6) {
-		if (extmass) extmass *= M;
-        if (extrad) extrad *= rvir;
-        if (extstart) extstart = extstart*tscale;
 		output6(output, N, nbin, tf, Rh, mmean, M, epoch, Z, RG, VG, rtide, star, Rgal, extmass, extrad, extstart);
 	}
 	
@@ -5150,31 +5147,31 @@ int output3(char *output, int N, int nbin, double rvir, double rh, double mmean,
 				}
 			}
 			double mi, mj, xi, yi, zi, xj, yj, zj;
-			for (j = 0; j<N-2*nbin; j++) {
+			for (j = 0; j<N-nbin; j++) {
 				if (j < nbin) {
 					mj = binary[j][0];
 					xj = binary[j][1];
 					yj = binary[j][2];
 					zj = binary[j][3];
 				} else {
-					mj = star[2*nbin + j][0];
-					xj = star[2*nbin + j][1];
-					yj = star[2*nbin + j][2];
-					zj = star[2*nbin + j][3];
+					mj = star[nbin + j][0];
+					xj = star[nbin + j][1];
+					yj = star[nbin + j][2];
+					zj = star[nbin + j][3];
 				}
 				// gas potential
 				gaspot -= mj/extrad*extmass/sqrt(1.0 + (xj*xj+yj*yj+zj*zj)/(extrad*extrad));
-				for (i = j+1; i<N-2*nbin; i++){
+				for (i = j+1; i<N-nbin; i++){
 					if (i < nbin) {
 						mi = binary[i][0];
 						xi = binary[i][1];
 						yi = binary[i][2];
 						zi = binary[i][3];
 					} else {
-						mi = star[2*nbin + i][0];
-						xi = star[2*nbin + i][1];
-						yi = star[2*nbin + i][2];
-						zi = star[2*nbin + i][3];
+						mi = star[nbin + i][0];
+						xi = star[nbin + i][1];
+						yi = star[nbin + i][2];
+						zi = star[nbin + i][3];
 					}
 					// cluster potential
 					epot -= mi*mj/sqrt(
@@ -5186,15 +5183,15 @@ int output3(char *output, int N, int nbin, double rvir, double rh, double mmean,
 			}
 			vscale = sqrt(1.0+0.5*gaspot/epot);
 
-			for (j = 0; j < N-2*nbin; j++) {
+			for (j = 0; j < N-nbin; j++) {
 				if (j < nbin) {
 					binary[j][4] *= vscale;
 					binary[j][5] *= vscale;
 					binary[j][6] *= vscale;
 				} else {
-					star[2*nbin + j][4] *= vscale;
-					star[2*nbin + j][5] *= vscale;
-					star[2*nbin + j][6] *= vscale;
+					star[nbin + j][4] *= vscale;
+					star[nbin + j][5] *= vscale;
+					star[nbin + j][6] *= vscale;
 				}
 			}
 			// transform binary velocity
@@ -5474,34 +5471,32 @@ int output6(char *output, int N, int nbin, int tf, double rh, double mmean, doub
 				}
 			}
 			double mi, mj, xi, yi, zi, xj, yj, zj;
-			for (j = 0; j<N-2*nbin; j++) {
+			for (j = 0; j<N-nbin; j++) {
 				if (j < nbin) {
 					mj = binary[j][0];
 					xj = binary[j][1];
 					yj = binary[j][2];
 					zj = binary[j][3];
 				} else {
-					mj = star[2*nbin + j][0];
-					xj = star[2*nbin + j][1];
-					yj = star[2*nbin + j][2];
-					zj = star[2*nbin + j][3];
+					mj = star[nbin + j][0];
+					xj = star[nbin + j][1];
+					yj = star[nbin + j][2];
+					zj = star[nbin + j][3];
 				}
 				// gas potential
 				gaspot -= mj/extrad*extmass/sqrt(1.0 + (xj*xj+yj*yj+zj*zj)/(extrad*extrad));
-				for (i = j+1; i<N-2*nbin; i++){
+				for (i = j+1; i<N-nbin; i++){
 					if (i < nbin) {
 						mi = binary[i][0];
 						xi = binary[i][1];
 						yi = binary[i][2];
 						zi = binary[i][3];
 					} else {
-						mi = star[2*nbin + i][0];
-						xi = star[2*nbin + i][1];
-						yi = star[2*nbin + i][2];
-						zi = star[2*nbin + i][3];
-						//printf("j=%d i=%d, N=%d, nbin=%d\n", 2*nbin+j, 2*nbin+i, N, nbin);
+						mi = star[nbin + i][0];
+						xi = star[nbin + i][1];
+						yi = star[nbin + i][2];
+						zi = star[nbin + i][3];
 					}
-					//printf("xi=%.3e xj=%.3e\n", xi, xj);
 					// cluster potential
 					epot -= mi*mj/sqrt(
 						((xi-xj)*(xi-xj))+
@@ -5510,18 +5505,17 @@ int output6(char *output, int N, int nbin, int tf, double rh, double mmean, doub
 					
 				}
 			}
-			printf("rescale vscale: %.2g epot: %.2g gaspot: %.2g\n", 0.0, epot, gaspot);
 			vscale = sqrt(1.0+0.5*gaspot/epot);
 			
-			for (j = 0; j < N-2*nbin; j++) {
+			for (j = 0; j < N-nbin; j++) {
 				if (j < nbin) {
 					binary[j][4] *= vscale;
 					binary[j][5] *= vscale;
 					binary[j][6] *= vscale;
 				} else {
-					star[2*nbin + j][4] *= vscale;
-					star[2*nbin + j][5] *= vscale;
-					star[2*nbin + j][6] *= vscale;
+					star[nbin + j][4] *= vscale;
+					star[nbin + j][5] *= vscale;
+					star[nbin + j][6] *= vscale;
 				}
 			}
 			// transform binary velocity
