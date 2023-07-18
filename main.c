@@ -1205,20 +1205,24 @@ int main (int argv, char **argc) {
 	
 	printf("\n\n-----OUTPUT-----      \n"); 
 
-	if (code == 0) 
+	if (code == 0) {
 		output0(output, N, NNBMAX, RS0, dtadj, dtout, tcrit, rvir, mmean, tf, regupdate, etaupdate, mloss, bin, esc, M, mlow, mup, MMAX, epoch, dtplot, Z, nbin, Q, RG, VG, rtide, gpu, star, sse, seed, extmass, extrad, extdecay, extstart);
-	else if (code == 1)
+	} else if (code == 1) {
 		output1(output, N, dtadj, dtout, tcrit, rvir, mmean, tf, regupdate, etaupdate, mloss, bin, esc, M, mlow, mup, MMAX, epoch, Z, nbin, Q, RG, VG, rtide, gpu, star);
-	else if (code == 2)
+	} else if (code == 2) {
 		output2(output, N, NNBMAX, RS0, dtadj, dtout, tcrit, rvir, mmean, tf, regupdate, etaupdate, mloss, bin, esc, M, mlow, mup, MMAX, epoch, dtplot, Z, nbin, Q, RG, VG, rtide, gpu, star, sse, seed, extmass, extrad, extdecay, extstart);
-	else if (code == 3)
+	} else if (code == 3) {
 		output3(output, N, nbin, rvir, Rh, mmean, M, epoch, Z, RG, VG, rtide, star, Rgal, extmass, extrad);
-	else if (code == 4) 
+	} else if (code == 4) {
 		output4(output, N, NNBMAX, RS0, dtadj, dtout, tcrit, rvir, mmean, tf, regupdate, etaupdate, mloss, bin, esc, M, mlow, mup, MMAX, epoch, dtplot, Z, nbin, Q, RG, VG, rtide, gpu, star, sse, seed, extmass, extrad, extdecay, extstart);
-	else if (code == 5) 
+	} else if (code == 5) { 
 		output5(output, N, NNBMAX, RS0, dtadj, dtout, tcrit*tscale, tcrit, rvir, mmean, tf, regupdate, etaupdate, mloss, bin, esc, M, mlow, mup, MMAX, epoch, dtplot, Z, nbin, Q, RG, VG, rtide, gpu, star, sse, seed, extmass, extrad, extdecay, extstart);
-	
-	
+	} else if (code == 6) {
+		if (extmass) extmass *= M;
+        if (extrad) extrad *= rvir;
+        if (extstart) extstart = extstart*tscale;
+		output6(output, N, nbin, tf, Rh, mmean, M, epoch, Z, RG, VG, rtide, star, Rgal, extmass, extrad, extstart);
+	}
 	
 	
 	
@@ -5121,7 +5125,7 @@ int output3(char *output, int N, int nbin, double rvir, double rh, double mmean,
 			binary = (double **)calloc(nbin,sizeof(double *));
 			for (j=0;j<nbin;j++){
 				binary[j] = (double *)calloc(13,sizeof(double));
-				if (star[j] == NULL) {
+				if (binary[j] == NULL) {
 					printf("\nMemory allocation failed!\n");
 					return 0;
 				}
@@ -5146,7 +5150,7 @@ int output3(char *output, int N, int nbin, double rvir, double rh, double mmean,
 				}
 			}
 			double mi, mj, xi, yi, zi, xj, yj, zj;
-			for (j = 0; j<N-nbin; j++) {
+			for (j = 0; j<N-2*nbin; j++) {
 				if (j < nbin) {
 					mj = binary[j][0];
 					xj = binary[j][1];
@@ -5160,10 +5164,7 @@ int output3(char *output, int N, int nbin, double rvir, double rh, double mmean,
 				}
 				// gas potential
 				gaspot -= mj/extrad*extmass/sqrt(1.0 + (xj*xj+yj*yj+zj*zj)/(extrad*extrad));
-				if (j == N-nbin-1) {
-					break;
-				}
-				for (i = j+1; i<N-nbin; i++){
+				for (i = j+1; i<N-2*nbin; i++){
 					if (i < nbin) {
 						mi = binary[i][0];
 						xi = binary[i][1];
@@ -5185,7 +5186,7 @@ int output3(char *output, int N, int nbin, double rvir, double rh, double mmean,
 			}
 			vscale = sqrt(1.0+0.5*gaspot/epot);
 
-			for (j = 0; j < N-nbin; j++) {
+			for (j = 0; j < N-2*nbin; j++) {
 				if (j < nbin) {
 					binary[j][4] *= vscale;
 					binary[j][5] *= vscale;
@@ -5419,6 +5420,218 @@ int output5(char *output, int N, int NNBMAX, double RS0, double dtadj, double dt
 	}
 	return 0;
 	
+}
+
+int output6(char *output, int N, int nbin, int tf, double rh, double mmean, double M, double epoch, double Z, double *RG, double *VG, double rtide, double **star, double Rgal, double extmass, double extrad, double extstart) {
+	double GpcMyrMsun = 0.00449830997959438;
+	double kms2pcMyr = 1.022712165045695;
+	double epot, gaspot, vscale;
+	int i, j;
+	char inputfile[20];
+	FILE *init;
+	sprintf(inputfile, "%s.input",output);
+	init = fopen(inputfile,"w");
+	// write header line
+	//             id N t pos_offset[3] vel_offset[3]
+	for (i=0; i<3; i++) {
+		// rescale potential to sun at 8000pc, 220km/s
+		RG[i] = RG[i]*8000.0/8500.0;
+		VG[i] *= kms2pcMyr;
+	}
+	// header
+	fprintf(init, "0 %d 0 %.15g %.15g %.15g %.15g %.15g %.15g\n", N, RG[0], RG[1], RG[2], VG[0], VG[1], VG[2]);
+	//rescale velocities to include effect of gas potential
+    if (extmass) {
+		if (nbin && UBIN) {
+			// split binary stars
+			// m1+m2, r_cm[3], v_cm[3], r_rel[3], v_rel[3]
+			double **binary;
+			binary = (double **)calloc(nbin,sizeof(double *));
+			for (j=0;j<nbin;j++){
+				binary[j] = (double *)calloc(13,sizeof(double));
+				if (binary[j] == NULL) {
+					printf("\nMemory allocation failed!\n");
+					return 0;
+				}
+			}
+			int p1, p2;
+			double m1, m2, mtot;
+			for (j=0; j<nbin; j++) {
+				p1 = 2*j;
+				p2 = 2*j + 1;
+				m1 = star[p1][0];
+				m2 = star[p2][0];
+				mtot = m1+m2;
+				// mass
+				binary[j][0] = mtot;
+				for (i = 0; i<3; i++) {
+					// c.m pos & vel
+					binary[j][i+1] = ((m1*star[p1][i+1]) + (m2*star[p2][i+1]))/mtot;
+					binary[j][i+4] = ((m1*star[p1][i+4]) + (m2*star[p2][i+4]))/mtot;
+					// relative pos & vel
+					binary[j][i+7] = star[p2][i+1] - star[p1][i+1];
+					binary[j][i+10] = star[p2][i+4] - star[p1][i+4];
+				}
+			}
+			double mi, mj, xi, yi, zi, xj, yj, zj;
+			for (j = 0; j<N-2*nbin; j++) {
+				if (j < nbin) {
+					mj = binary[j][0];
+					xj = binary[j][1];
+					yj = binary[j][2];
+					zj = binary[j][3];
+				} else {
+					mj = star[2*nbin + j][0];
+					xj = star[2*nbin + j][1];
+					yj = star[2*nbin + j][2];
+					zj = star[2*nbin + j][3];
+				}
+				// gas potential
+				gaspot -= mj/extrad*extmass/sqrt(1.0 + (xj*xj+yj*yj+zj*zj)/(extrad*extrad));
+				for (i = j+1; i<N-2*nbin; i++){
+					if (i < nbin) {
+						mi = binary[i][0];
+						xi = binary[i][1];
+						yi = binary[i][2];
+						zi = binary[i][3];
+					} else {
+						mi = star[2*nbin + i][0];
+						xi = star[2*nbin + i][1];
+						yi = star[2*nbin + i][2];
+						zi = star[2*nbin + i][3];
+						//printf("j=%d i=%d, N=%d, nbin=%d\n", 2*nbin+j, 2*nbin+i, N, nbin);
+					}
+					//printf("xi=%.3e xj=%.3e\n", xi, xj);
+					// cluster potential
+					epot -= mi*mj/sqrt(
+						((xi-xj)*(xi-xj))+
+						((yi-yj)*(yi-yj))+
+						((zi-zj)*(zi-zj)));
+					
+				}
+			}
+			printf("rescale vscale: %.2g epot: %.2g gaspot: %.2g\n", 0.0, epot, gaspot);
+			vscale = sqrt(1.0+0.5*gaspot/epot);
+			
+			for (j = 0; j < N-2*nbin; j++) {
+				if (j < nbin) {
+					binary[j][4] *= vscale;
+					binary[j][5] *= vscale;
+					binary[j][6] *= vscale;
+				} else {
+					star[2*nbin + j][4] *= vscale;
+					star[2*nbin + j][5] *= vscale;
+					star[2*nbin + j][6] *= vscale;
+				}
+			}
+			// transform binary velocity
+			for (j = 0; j<nbin; j++) {
+				p1 = 2*j;
+				p2 = 2*j + 1;
+				m1 = star[p1][0];
+				m2 = star[p2][0];
+				mtot = m1+m2;
+				for (i = 0; i < 3; i++) {
+					star[p2][i+4] = binary[j][i+4] + (m1/mtot)*binary[j][i+10];
+					star[p1][i+4] = binary[j][i+4] - (m2/mtot)*binary[j][i+10];
+				}
+			}
+			for (j=0; j<nbin; j++) {
+				free(binary[j]);
+			}
+			free(binary);
+		} else {
+#ifndef NOOMP
+#pragma omp parallel shared(N, star)  private(i, j)
+		{
+#pragma omp for reduction(+: epot, gaspot) schedule(dynamic)
+#endif
+        for (j=0; j<N; j++) {
+			if (j) {
+                //cluster binding energy
+                for (i=0;i<j-1;i++)
+					epot -= star[i][0]*star[j][0]/sqrt((star[i][1]-star[j][1])*(star[i][1]-star[j][1])+(star[i][2]-star[j][2])*(star[i][2]-star[j][2])+(star[i][3]-star[j][3])*(star[i][3]-star[j][3]));
+                //external gas potential binding energy
+                gaspot -= star[j][0]/extrad*extmass/sqrt(1.0+(star[j][1]*star[j][1]+star[j][2]*star[j][2]+star[j][3]*star[j][3])/(extrad*extrad));
+            }
+		}
+#ifndef NOOMP
+		}
+#endif
+
+        vscale = sqrt(1.0+0.5*gaspot/epot);
+        
+        for (j=0; j<N; j++) {
+            star[j][4] *= vscale;
+            star[j][5] *= vscale;
+            star[j][6] *= vscale;
+        }
+		}
+        printf("\nVelocities rescaled to virial equilibrium in Plummer background potential with mass of %.2g Msun and a Plummer radius of %.2f pc, vscale = %.2f.\n", extmass, extrad, vscale);
+		printf("\nEpot = %.3e, gas_pot = %.3e\n", epot, gaspot);
+    }
+	//write data rows
+	double m, rx, ry, rz, vx, vy, vz;
+	for(i=0; i<N; i++) {
+		m = star[i][0];
+		rx = star[i][1];
+		ry = star[i][2];
+		rz = star[i][3];
+		// transform km/s to pc/Myr
+		vx = star[i][4]*kms2pcMyr;
+		vy = star[i][5]*kms2pcMyr;
+		vz = star[i][6]*kms2pcMyr;
+		fprintf(init,
+			"%.15g %.15g %.15g %.15g %.15g %.15g %.15g 0 0 0 0 0 1 %.15g %.15g 0 0 0 0 0 0 0 0 %d 0 0 0 0 0 0 0 0 0 0 0\n",
+			  m,     rx,   ry,   rz,   vx,  vy,   vz,               m,     m,                  i
+		);
+	}
+	fclose(init);
+	// if use MW+gas potential, generate potential configuration file
+	if (tf == 3) {
+		FILE *potconf;
+		char potfile[20];
+		sprintf(potfile, "%s.pot",output);
+		potconf = fopen(potfile,"w");
+		printf("extmass=%.15g\n", extmass);
+		double GM = GpcMyrMsun*extmass;
+		double vg = 10*kms2pcMyr;
+		double taug = extrad/vg;
+		double a = -1.0/taug;
+		double tremove = log(1e-9/extmass)/a;
+		fprintf(potconf, "Time 0.0 Task add\n");
+		fprintf(potconf, "Nset 2\n");
+		fprintf(potconf, "Set 0\n");
+		// MWPotential2014
+		fprintf(potconf, "Ntype 3 Mode 0\n");
+		fprintf(potconf, "GM 0.0 Pos 0.0 0.0 0.0 Vel 0.0 0.0 0.0\n");
+		fprintf(potconf, "Type 15 5 9\n");
+		fprintf(potconf, "Arg 251.63858935563147 1.8 1899.9999999999998 306770418.38588977 3000.0 280.0 1965095308.192175 16000.0\n");
+		fprintf(potconf, "Nchange 0\n");
+		// gas potential
+		fprintf(potconf, "Set 1\n");
+		fprintf(potconf, "Ntype 1 Mode 1\n");
+		fprintf(potconf, "GM %.15g Pos 0.0 0.0 0.0 Vel 0.0 0.0 0.0\n", GM);
+		fprintf(potconf, "Type 17\n");
+		fprintf(potconf, "Arg %.15g %.15g\n", GM, extrad);
+		fprintf(potconf, "Nchange 0\n");
+		// star gas expulsion
+		fprintf(potconf, "Time %.15g Task update\n", extstart);
+		fprintf(potconf, "Nset 1 Set 1\n");
+		fprintf(potconf, "Ntype 1 Mode 1\n");
+		fprintf(potconf, "GM %.15g Pos 0.0 0.0 0.0 Vel 0.0 0.0 0.0\n", GM);
+		fprintf(potconf, "Type 17\n");
+		fprintf(potconf, "Arg %.15g %.15g\n", GM, extrad);
+		fprintf(potconf, "Nchange 2 Index -1 0\n");
+		fprintf(potconf, "ChangeMode 2 2\n");
+		fprintf(potconf, "ChangeRate %.15g %.15g\n", a, a);
+		// remove when Mg < 1e-9
+		fprintf(potconf, "Time %.15g Task remove\n", extstart+tremove);
+		fprintf(potconf, "Nset 1 Index 1\n");
+		fclose(potconf);
+	}
+	printf("nbin=%d\n", nbin);
+	return 0;
 }
 
 void info(char *output, int N, double Mcl, int profile, double W0, double S, double D, double Q, double Rh, double gamma[], double a, double Rmax, double tcrit, int tf, double RG[], double VG[], int mfunc, double single_mass, double mlow, double mup, double alpha[], double mlim[], double alpha_L3, double beta_L3, double mu_L3, int weidner, int mloss, int remnant, double epoch, double Z, int prantzos, int nbin, double fbin, int pairing, double msort, int adis, double amin, double amax, int eigen, int BSE, double extmass, double extrad, double extdecay, double extstart, int code, int seed, double dtadj, double dtout, double dtplot, int gpu, int regupdate, int etaupdate, int esc, int units, int match, int symmetry, int OBperiods) {
