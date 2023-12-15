@@ -158,7 +158,7 @@ int main (int argv, char **argc) {
     int kn = 0;                     //Counter for semi-major axis limits for adis=0
 	double extgas[4];				//Input array for external potential parameters
 	
-    feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
+  //    feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
     
 	//SSE internal parameters (see Hurley, Pols & Tout 2000) 
 	value1_.neta = 0.5;			//Reimers mass-loss coefficent (neta*4x10^-13; 0.5 normally)
@@ -4597,7 +4597,7 @@ double rtnewt (double ecc, double ma) {
 		rtnewt=rtnewt-dx;
 		if ((x1-rtnewt)*(rtnewt-x2)<0) 
 			printf("jumped out of brackets\n");
-		if(abs(dx)<xacc) return(rtnewt);
+		if(fabs(dx)<xacc) return(rtnewt);
 	}
 	printf("RTNEWT exceeding maximum iterations\n");
 	exit(-1); 
@@ -5420,9 +5420,39 @@ int output5(char *output, int N, int NNBMAX, double RS0, double dtadj, double dt
 }
 
 int output6(char *output, int N, int nbin, int tf, double rh, double mmean, double M, double epoch, double Z, double *RG, double *VG, double rtide, double **star, double Rgal, double extmass, double extrad, double extstart) {
+/*
+Output as PeTar's input file
+
+From PeTar's documentation:
+First line:
+	1. File_ID: 0 for initialization, else for restarting
+	2. N_particle
+	3. Time
+	4-6: offset of system centeral position (assuming galactic center is the coordiante origin in the case of Galpy)
+	7-9: offset of system centeral velocity
+Following lines:
+	1. mass: mass of particle
+	2-4. pos.[x/y/z]: 3D position of particle
+	5-7. vel.[x/y/z]: 3D velocity of particle
+	8. bin_stat: binary status storing pair id and status [formatted] (0.0)
+	9. r_search: neighbor searching radius (0.0)
+	10. id: identification of particle, should be a positive unique value (>0)
+	11. mass_bk: artificial particle parameter 1 [formatted] (0.0)
+	12. status: artificial particle parameter 2 [formatted] (0.0)
+	13. r_in: inner changeover radius (0.0)
+	14. r_out: outer changeover radius (0.0)
+	15-17. acc_soft.[x/y/z]: 3D soft (long-range) acceleration (0.0)
+	18. pot_tot: total potential (0.0)
+	19. pot_soft: soft potential (0.0)
+	20. pot_ext: external potential (0.0)
+	21. n_b: number of neighbors (0)
+PS: (*) show initialization values which should be used together with FILE_ID = 0
+	[formatted] indicates that the value is only for save, cannot be directly read
+*/
+	
 	double GpcMyrMsun = 0.00449830997959438;
 	double kms2pcMyr = 1.022712165045695;
-	double epot, gaspot, vscale;
+	double epot=0.0, gaspot=0.0, vscale;
 	int i, j;
 	char inputfile[20];
 	FILE *init;
@@ -5575,14 +5605,22 @@ int output6(char *output, int N, int nbin, int tf, double rh, double mmean, doub
 		vx = star[i][4]*kms2pcMyr;
 		vy = star[i][5]*kms2pcMyr;
 		vz = star[i][6]*kms2pcMyr;
+#ifdef SSE
+// if turn on stellar evolution
 		fprintf(init,
 			"%.15g %.15g %.15g %.15g %.15g %.15g %.15g 0 0 0 0 0 1 %.15g %.15g 0 0 0 0 0 0 0 0 %d 0 0 0 0 0 0 0 0 0 0 0\n",
 			  m,     rx,   ry,   rz,   vx,  vy,   vz,               m,     m,                  i+1
 		);
+#else
+	fprintf(init,
+			"%.15g %.15g %.15g %.15g %.15g %.15g %.15g 0 0 %d 0 0 0 0 0 0 0 0 0 0 0\n",
+			  m,     rx,   ry,   rz,   vx,  vy,   vz,     i+1
+		);
+#endif
 	}
 	fclose(init);
-	// if use MW+gas potential, generate potential configuration file
-	if (tf == 3) {
+	// if use extral potential, generate potential configuration file
+	if (tf == 3 || tf == 4) {
 		FILE *potconf;
 		char potfile[20];
 		sprintf(potfile, "%s.pot",output);
@@ -5594,34 +5632,68 @@ int output6(char *output, int N, int nbin, int tf, double rh, double mmean, doub
 		double a = -1.0/taug;
 		double tremove = log(1e-9/extmass)/a;
 		fprintf(potconf, "Time 0.0 Task add\n");
-		fprintf(potconf, "Nset 2\n");
-		fprintf(potconf, "Set 0\n");
-		// MWPotential2014
-		fprintf(potconf, "Ntype 3 Mode 0\n");
-		fprintf(potconf, "GM 0.0 Pos 0.0 0.0 0.0 Vel 0.0 0.0 0.0\n");
-		fprintf(potconf, "Type 15 5 9\n");
-		fprintf(potconf, "Arg 251.63858935563147 1.8 1899.9999999999998 306770418.38588977 3000.0 280.0 1965095308.192175 16000.0\n");
-		fprintf(potconf, "Nchange 0\n");
-		// gas potential
-		fprintf(potconf, "Set 1\n");
-		fprintf(potconf, "Ntype 1 Mode 1\n");
-		fprintf(potconf, "GM %.15g Pos 0.0 0.0 0.0 Vel 0.0 0.0 0.0\n", GM);
-		fprintf(potconf, "Type 17\n");
-		fprintf(potconf, "Arg %.15g %.15g\n", GM, extrad);
-		fprintf(potconf, "Nchange 0\n");
-		// star gas expulsion
-		fprintf(potconf, "Time %.15g Task update\n", extstart);
-		fprintf(potconf, "Nset 1 Set 1\n");
-		fprintf(potconf, "Ntype 1 Mode 1\n");
-		fprintf(potconf, "GM %.15g Pos 0.0 0.0 0.0 Vel 0.0 0.0 0.0\n", GM);
-		fprintf(potconf, "Type 17\n");
-		fprintf(potconf, "Arg %.15g %.15g\n", GM, extrad);
-		fprintf(potconf, "Nchange 2 Index -1 0\n");
-		fprintf(potconf, "ChangeMode 2 2\n");
-		fprintf(potconf, "ChangeRate %.15g %.15g\n", a, a);
-		// remove when Mg < 1e-9
-		fprintf(potconf, "Time %.15g Task remove\n", extstart+tremove);
-		fprintf(potconf, "Nset 1 Index 1\n");
+		if (tf == 3) {
+			if (extmass > 0.0) {
+				fprintf(potconf, "Nset 2\n");
+			} else {
+				fprintf(potconf, "Nset 1\n");
+			}
+			fprintf(potconf, "Set 0\n");
+			// MWPotential2014
+			fprintf(potconf, "Ntype 3 Mode 0\n");
+			fprintf(potconf, "GM 0.0 Pos 0.0 0.0 0.0 Vel 0.0 0.0 0.0\n");
+			fprintf(potconf, "Type 15 5 9\n");
+			fprintf(potconf, "Arg 251.63858935563147 1.8 1899.9999999999998 306770418.38588977 3000.0 280.0 1965095308.192175 16000.0\n");
+			fprintf(potconf, "Nchange 0\n");
+			// gas potential
+			if (extmass > 0){
+				fprintf(potconf, "Set 1\n");
+				fprintf(potconf, "Ntype 1 Mode 1\n");
+				fprintf(potconf, "GM %.15g Pos 0.0 0.0 0.0 Vel 0.0 0.0 0.0\n", GM);
+				fprintf(potconf, "Type 17\n");
+				fprintf(potconf, "Arg %.15g %.15g\n", GM, extrad);
+				fprintf(potconf, "Nchange 0\n");
+				// star gas expulsion
+				fprintf(potconf, "Time %.15g Task update\n", extstart);
+				fprintf(potconf, "Nset 1 Set 1\n");
+				fprintf(potconf, "Ntype 1 Mode 1\n");
+				fprintf(potconf, "GM %.15g Pos 0.0 0.0 0.0 Vel 0.0 0.0 0.0\n", GM);
+				fprintf(potconf, "Type 17\n");
+				fprintf(potconf, "Arg %.15g %.15g\n", GM, extrad);
+				fprintf(potconf, "Nchange 2 Index -1 0\n");
+				fprintf(potconf, "ChangeMode 2 2\n");
+				fprintf(potconf, "ChangeRate %.15g %.15g\n", a, a);
+				// remove when Mg < 1e-9
+				fprintf(potconf, "Time %.15g Task remove\n", extstart+tremove);
+				fprintf(potconf, "Nset 1 Index 1\n");
+			}
+		}
+		if (tf == 4) {
+			fprintf(potconf, "Nset 1\n");
+			// gas potential
+			fprintf(potconf, "Set 0\n");
+			fprintf(potconf, "Ntype 1 Mode 1\n");
+			fprintf(potconf, "GM %.15g Pos 0.0 0.0 0.0 Vel 0.0 0.0 0.0\n", GM);
+			fprintf(potconf, "Type 17\n");
+			fprintf(potconf, "Arg %.15g %.15g\n", GM, extrad);
+			if (extstart > 0.0) {
+				fprintf(potconf, "Nchange 0\n");
+				// star gas expulsion
+				fprintf(potconf, "Time %.15g Task update\n", extstart);
+				fprintf(potconf, "Nset 1 Set 1\n");
+				fprintf(potconf, "Ntype 1 Mode 1\n");
+				fprintf(potconf, "GM %.15g Pos 0.0 0.0 0.0 Vel 0.0 0.0 0.0\n", GM);
+				fprintf(potconf, "Type 17\n");
+				fprintf(potconf, "Arg %.15g %.15g\n", GM, extrad);
+				fprintf(potconf, "Nchange 2 Index -1 0\n");
+				fprintf(potconf, "ChangeMode 2 2\n");
+				fprintf(potconf, "ChangeRate %.15g %.15g\n", a, a);
+			} else {
+				fprintf(potconf, "Nchange 2 Index -1 0\n");
+				fprintf(potconf, "ChangeMode 2 2\n");
+				fprintf(potconf, "ChangeRate %.15g %.15g\n", a, a);
+			}
+		}
 		fclose(potconf);
 	}
 	printf("nbin=%d\n", nbin);
