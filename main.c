@@ -1218,7 +1218,7 @@ int main (int argv, char **argc) {
 	} else if (code == 5) { 
 		output5(output, N, NNBMAX, RS0, dtadj, dtout, tcrit*tscale, tcrit, rvir, mmean, tf, regupdate, etaupdate, mloss, bin, esc, M, mlow, mup, MMAX, epoch, dtplot, Z, nbin, Q, RG, VG, rtide, gpu, star, sse, seed, extmass, extrad, extdecay, extstart);
 	} else if (code == 6) {
-		output6(output, N, nbin, tf, Rh, mmean, M, epoch, Z, RG, VG, rtide, star, Rgal, extmass, extrad, extstart);
+		output6(output, N, nbin, tf, Rh, mmean, M, epoch, Z, RG, VG, rtide, star, Rgal, extmass, extrad, extstart, Q);
 	}
 	
 	
@@ -5419,7 +5419,7 @@ int output5(char *output, int N, int NNBMAX, double RS0, double dtadj, double dt
 	
 }
 
-int output6(char *output, int N, int nbin, int tf, double rh, double mmean, double M, double epoch, double Z, double *RG, double *VG, double rtide, double **star, double Rgal, double extmass, double extrad, double extstart) {
+int output6(char *output, int N, int nbin, int tf, double rh, double mmean, double M, double epoch, double Z, double *RG, double *VG, double rtide, double **star, double Rgal, double extmass, double extrad, double extstart, double Q) {
 /*
 Output as PeTar's input file
 
@@ -5466,7 +5466,11 @@ PS: (*) show initialization values which should be used together with FILE_ID = 
 		VG[i] *= kms2pcMyr;
 	}
 	// header
-	fprintf(init, "0 %d 0 %.15g %.15g %.15g %.15g %.15g %.15g\n", N, RG[0], RG[1], RG[2], VG[0], VG[1], VG[2]);
+	if (tf == 4) {
+		fprintf(init, "0 %d 0 0 0 0 0 0 0\n", N);
+	} else {
+		fprintf(init, "0 %d 0 %.15g %.15g %.15g %.15g %.15g %.15g\n", N, RG[0], RG[1], RG[2], VG[0], VG[1], VG[2]);
+	}
 	//rescale velocities to include effect of gas potential
     if (extmass) {
 		if (nbin && UBIN) {
@@ -5583,7 +5587,7 @@ PS: (*) show initialization values which should be used together with FILE_ID = 
 		}
 #endif
 
-        vscale = sqrt(1.0+0.5*gaspot/epot);
+        vscale = sqrt(1.0+Q*gaspot/epot);
         
         for (j=0; j<N; j++) {
             star[j][4] *= vscale;
@@ -5693,6 +5697,8 @@ PS: (*) show initialization values which should be used together with FILE_ID = 
 				fprintf(potconf, "ChangeMode 2 2\n");
 				fprintf(potconf, "ChangeRate %.15g %.15g\n", a, a);
 			}
+			fprintf(potconf, "Time %.15g Task remove\n", extstart+tremove);
+			fprintf(potconf, "Nset 1 Index 0\n");
 		}
 		fclose(potconf);
 	}
