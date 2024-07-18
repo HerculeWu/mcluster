@@ -75,17 +75,18 @@ int main (int argv, char **argc) {
 	double S = 0.0;			    	//Fraction of mass segregation for profile; =0.0 unsegregated, =1.0 completely segregated (take maximally S=0.99 for profile=2)
 	double D = 3.0;			    	//Fractal dimension; =3.0 unfractal, =2.6 2/8 fractal, =2.0 4/8 fractal, =1.6 6/8 fractal, (2^D children per parent, following Goodwin & Whitworth 2004);
 	double Q = 0.5;					//Initial virial ratio; =0.5 virial equilibrium, <0.5 collapsing, >0.5 expanding
-	double Rh = 0.8;				//Half-mass radius [pc], ignored if profile = 3, set =-1 for using Marks & Kroupa (2012) Mcl-Rh relation
+	double Rh = -1;				//Half-mass radius [pc], ignored if profile = 3, set =-1 for using Marks & Kroupa (2012) Mcl-Rh relation
 	double gamma[3] = {2.0, 0.0, 2.0}; //Power-law slopes of EFF/Nuker templates (outer slope, inner slope, transition); set gamma[1] = 0.0 and gamma[2] = 2.0 for EFF (profile = 3)  
 	double a = 1.0;					//Scale radius of EFF/Nuker template (profile = 3) [pc]
 	double Rmax = 100.0;			//Cut-off radius for EFF/Nuker template (profile = 3) [pc]
 	double tcrit = 100.0;			//Simulation time [Myr]
 	int tf = 3;						//Tidal field: =0 no tidal field, =1 Near-field approximation, =2 point-mass galaxy, =3 Allen & Santillan (1991) MW potential (or Sverre's version of it)
-	double RG[3] = {8500.0,0.0,0.0}; //Initial Galactic coordinates of the cluster [pc]
+	double RG[3] = {8000.0,0.0,0.0}; //Initial Galactic coordinates of the cluster [pc]
 	double VG[3] = {0.0,220.0,0.0};  //Initial velocity of the cluster [km/s]
+	double rtide_in = 10.0; // tidal radius, calculated according to the tidal field setup, and give as a parameter
 	
 	//Mass function parameters
-	int mfunc = 1;					//0 = single mass stars; 1 = use Kroupa (2001) mass function; 2 = use multi power law ; 3 = optimal sampling; 4 L3 IMF (Naschberger 2012); 5 Varying alpha3 based on metellicity and density (Marks & Kroupa 2012); 6 Multi component systems (set in -m, a few times)
+	int mfunc = 3;					//0 = single mass stars; 1 = use Kroupa (2001) mass function; 2 = use multi power law ; 3 = optimal sampling; 4 L3 IMF (Naschberger 2012); 5 Varying alpha3 based on metellicity and density (Marks & Kroupa 2012); 6 Multi component systems (set in -m, a few times)
 	double single_mass = 1.0;		//Stellar mass in case of single-mass cluster 
 	double mlow = 0.08;				//Lower mass limit for mfunc = 1 & mfunc = 4
 	double mup = 150.0;				//Upper mass limit for mfunc = 1 & mfunc = 4
@@ -95,7 +96,7 @@ int main (int argv, char **argc) {
 	double alpha_L3 = 2.3;			//alpha slope for mfunc = 4 (L3 mass function, Maschberger 2012)
 	double beta_L3 = 1.4;			//beta slope for mfunc = 4
 	double mu_L3 = 0.2;				//mu parameter for mfunc = 4
-	int weidner = 0;				//Usage of Weidner & Kroupa (2006) relation for most massive star; =0 off, =1 on
+	int weidner = 1;				//Usage of Weidner & Kroupa (2006) relation for most massive star; =0 off, =1 on
 	int mloss = 3;					//Stellar evolution; 0 = off, 3 = Eggleton, Tout & Hurley [KZ19]
 	int remnant = 1;				//Use random kick velocity and present-day escape velocity to determine retention of compact remnants & evolved binary components (only for SSE/BSE version); =0 off, =1 on
 	double epoch = 0.0;			    //Age of the cluster, i.e. star burst has been ... Myr before [e.g. 1000.0, default = 0.0] [needs special compiling and SSE by Hurley, Pols & Tout]
@@ -105,7 +106,7 @@ int main (int argv, char **argc) {
 	
 	//Binary parameters
 	int nbin = 0;				    //Number of primordial binary systems
-	double fbin = 0.0;				//Primordial binary fraction, number of binary systems = 0.5*N*fbin, only used when nbin is set to 0 
+	double fbin = 1.0;				//Primordial binary fraction, number of binary systems = 0.5*N*fbin, only used when nbin is set to 0 
 	int pairing = 3;				//Pairing of binary components; 0= random pairing, 1= ordered pairing for components with masses M>msort, 2= random but separate pairing for components with masses m>Msort; 3= Use period distribution for M>msort from Sana et al. (2011,2012) and Oh et al. (2015).
 	double msort = 5.0;				//Stars with masses > msort will be sorted and preferentially paired into binaries if pairing = 1
 	int adis = 1;					//Semi-major axis distribution; 0= flat ranging from amin to amax, 1= based on Kroupa (1995) period distribution, 2= based on Duquennoy & Mayor (1991) period distribution, 3= based on Kroupa (1995) period distribution 
@@ -113,21 +114,21 @@ int main (int argv, char **argc) {
 	double amin = 0.0001;			//Minimum semi-major axis for adis = 0 [pc]
 	double amax = 0.01;				//Maximum semi-major axis for adis = 0 [pc]
 #ifdef SSE
-	int eigen = 0;					//Use Kroupa (1995) eigenevolution for pre-main sequence short-period binaries; =0 off, =1 on [use either eigenevolution or BSE; BSE recommended when using SSE]
-	int BSE = 1;					//Apply binary star evolution using BSE (Hurley, Tout & Pols 2002) =0 off, =1 on [use either eigenevolution or BSE; BSE recommended when using SSE]
+	int eigen = 2;					//Use Kroupa (1995) eigenevolution for pre-main sequence short-period binaries; =0 off, =1 on [use either eigenevolution or BSE; BSE recommended when using SSE]
+	int BSE = 0;					//Apply binary star evolution using BSE (Hurley, Tout & Pols 2002) =0 off, =1 on [use either eigenevolution or BSE; BSE recommended when using SSE]
 #else
 	int eigen = 2;					// 1. Use Kroupa (1995) eigenevolution for pre-main sequence short-period binaries; 2. Use modified eigenevolution from Belloni et al. (2017); 0. Off
 	int BSE = 0;					//Apply binary star evolution using BSE (Hurley, Tout & Pols 2002) [needs special compiling and BSE]; =0 off, =1 on [use either eigenevolution or BSE; BSE recommended when using SSE]
 #endif
 	
 	//Gas parameters (only used for Nbody6 input)
-	double extmass = 0.0;			//external Plummer (gas) sphere mass [Msun]
+	double extmass = Mcl/epsilon;			//external Plummer (gas) sphere mass [Msun]
 	double extrad = 0.0;			//external Plummer (gas) sphere scale factor [pc]
 	double extdecay = 0.0;			//decay time for gas expulsion (set 0 for no decay) [Myr] 
-	double extstart = 0.0;			//delay time for start of gas expulsion [Myr]
+	double extstart = 0.6;			//delay time for start of gas expulsion [Myr]
 	
 	//Code parameters
-	int code = 3;					//Nbody version: =0 Nbody6, =1 Nbody4, =2 Nbody6 custom, =3 only create output list of stars, =4 Nbody7 (not yet fully functional), =5 Nbody6++GPU
+	int code = 6;					//Nbody version: =0 Nbody6, =1 Nbody4, =2 Nbody6 custom, =3 only create output list of stars, =4 Nbody7 (not yet fully functional), =5 Nbody6++GPU
 	unsigned int seed = 0;			//Number seed for random number generator; =0 for randomization by local time
 	char *output = "test";   		//Name of output files
 	double dtadj = 1.0;				//DTADJ [N-body units (Myr in Nbody6 custom)], energy-check time step
@@ -248,7 +249,7 @@ int main (int argv, char **argc) {
             else {printf("\nError: Number of semi-major axis limits should be call only twice\n"); return 1; }
         case 'E': OBperiods =atoi(optarg); break;
 		case 's': seed = atoi(optarg); break;
-		case 't': tf = atoi(optarg); break;
+		case 't': rtide_in = atof(optarg); break;
 		case 'e': epoch = atof(optarg); break;
 		case 'Z': Z = atof(optarg); break;
 		case 'X' :
@@ -750,10 +751,14 @@ int main (int argv, char **argc) {
 	
 	
 	//evaluate approximate tidal radius assuming circular orbit
-	if (tf == 3) {
+	if (tf >= 3) {
+		/*
 		//in the case of Allen & Santillan potential, assume kappa = 1.4omega (eq. 9 in Kuepper et al. 2010)
 		omega = sqrt(VG[0]*VG[0]+VG[1]*VG[1]+VG[2]*VG[2])/sqrt(RG[0]*RG[0]+RG[1]*RG[1]+RG[2]*RG[2]);
 		rtide = pow(G*M/(2.0*omega*omega),1.0/3.0);
+		*/
+		// The detailed rtid will be calculated external and input as a parameter
+		rtide = rtide_in;
 	} else if (!tf) {
 		rtide = 1.0E5;
 	} else if ((tf == 1) && (code == 0 || code == 4 || code == 5)) {
@@ -1218,6 +1223,9 @@ int main (int argv, char **argc) {
 	} else if (code == 5) { 
 		output5(output, N, NNBMAX, RS0, dtadj, dtout, tcrit*tscale, tcrit, rvir, mmean, tf, regupdate, etaupdate, mloss, bin, esc, M, mlow, mup, MMAX, epoch, dtplot, Z, nbin, Q, RG, VG, rtide, gpu, star, sse, seed, extmass, extrad, extdecay, extstart);
 	} else if (code == 6) {
+		if ((extmass > 0.0) && (extrad == 0.0)) {
+                        extrad = rplummer;
+        }
 		output6(output, N, nbin, tf, Rh, mmean, M, epoch, Z, RG, VG, rtide, star, Rgal, extmass, extrad, extstart, Q);
 	}
 	
@@ -1278,7 +1286,7 @@ int main (int argv, char **argc) {
 	}
 	printf("\nElapsed time: %g sec\n",t2-t1);	//print stopped time
 #endif
-	
+	printf("%d\n", nbin);
 	return 0;
 }
 
@@ -5472,7 +5480,7 @@ PS: (*) show initialization values which should be used together with FILE_ID = 
 		fprintf(init, "0 %d 0 %.15g %.15g %.15g %.15g %.15g %.15g\n", N, RG[0], RG[1], RG[2], VG[0], VG[1], VG[2]);
 	}
 	//rescale velocities to include effect of gas potential
-    if (extmass) {
+    if (extmass && (tf==3 || tf==4)) {
 		if (nbin && UBIN) {
 			// split binary stars
 			// m1+m2, r_cm[3], v_cm[3], r_rel[3], v_rel[3]
@@ -5609,18 +5617,11 @@ PS: (*) show initialization values which should be used together with FILE_ID = 
 		vx = star[i][4]*kms2pcMyr;
 		vy = star[i][5]*kms2pcMyr;
 		vz = star[i][6]*kms2pcMyr;
-#ifdef SSE
-// if turn on stellar evolution
+// turn on stellar evolution
 		fprintf(init,
 			"%.15g %.15g %.15g %.15g %.15g %.15g %.15g 0 0 0 0 0 1 %.15g %.15g 0 0 0 0 0 0 0 0 %d 0 0 0 0 0 0 0 0 0 0 0\n",
 			  m,     rx,   ry,   rz,   vx,  vy,   vz,               m,     m,                  i+1
 		);
-#else
-	fprintf(init,
-			"%.15g %.15g %.15g %.15g %.15g %.15g %.15g 0 0 %d 0 0 0 0 0 0 0 0 0 0 0\n",
-			  m,     rx,   ry,   rz,   vx,  vy,   vz,     i+1
-		);
-#endif
 	}
 	fclose(init);
 	// if use extral potential, generate potential configuration file
